@@ -1,0 +1,86 @@
+---
+title: "SCTransform tutorial"
+author: "Rivoirard Baptiste"
+date: "2024-10-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Ce tutoriel explique comment utiliser la fonction `SCTransform` du package Seurat pour normaliser les données scRNA-seq.
+
+## Instalation du package
+
+Avant de commencer, assurez-vous que les packages nécessaires pour le tutoriel sont installés (à faire une seule fois). Si ce n'est pas le cas alors exécutez la cellule suivante.
+
+```{r pressure, echo=FALSE}
+install.packages("Seurat")
+install.packages("SeuratData")
+BiocManager::install("glmGamPoi")
+
+```
+
+## Chargement des packages
+
+Il faut maintenant charger les packages nécessaires.
+
+```{r}
+library(Seurat)
+library(SeuratData)
+
+```
+
+## Chargement des données
+
+On va utiliser les données du jeu de données pbmc3k. Il s'agit d'un jeu de donné de scRNA-seq d'exemple disponible dans le package SeuratData pour notre tutoriel. Il faut donc l'installer depuis le package SeuratData puis le charger. Cette étape remplace l'étape de CreateSeuratObject. 
+
+```{r} 
+InstallData("pbmc3k")
+pbmc <- LoadData("pbmc3k", type = "pbmc3k.final")
+
+```
+
+## Application de SCTransform
+
+Nous allons maintenant voir comment utiliser SCTransform pour la normalisation des données de scRNA-seq. 
+Lors d'une véritable analyse de scRNA-seq, il faut avant cela réaliser une étape de pré-processing pour eliminer les cellules de mauvaise qualité et une étape d'élimination des doublets/multiplets. Pour plus d'informations sur ces étapes vous pouvez vous référer aux tutoriels des groupes qui s'en sont occupé. 
+On peut donc utiliser SCTransform en spécifiant dans vars.to.regress les covariables pour lesquelles on veut ajuster l'expression des gènes,   dans notre exemple le pourcentage d'ARN mitochondrial (percent.mt) et le nombre total d'UMI (nCount_RNA). On peut ajuster pour d'autres facteurs dont on suppose qu'ils apportent un biais technique sur les niveaux d'expression des gènes comme le nombre de gènes exprimés par cellule (nFeature_RNA) ou encore les effets du cycle cellulaire (avec S.Score et G2M.Score que l'on obtient avec la fonction CellCycleScoring() de Seurat).
+SCTransform prenant également en charge l'étape de sélection de HVG on peut lui spécifier le nombre de HVG que l'on souhaite séléctionner avec le paramètre nfeatures. Ici on lui demande de sélectionner 2000 HVG. Si l'on veut que seuls les HVG soient normalisés et scalé il est possible de le faire en spécifiant à SCTransform : return.only.var.genes = TRUE. Ce qui permet d'économiser de la mémoire et du temps de calcul. Enfin il est également possible de lui spécifier un nombre de gènes exprimés minimum pour qu'une cellule soit incluse dans l'analyse avec le pramètre : min.cells. Par exemple si je veux que mes cellules expriment au minimum 10 gènes pour être considérées dans l'analyse : min.cells = 10.
+
+```{r}
+
+pbmc <- PercentageFeatureSet(pbmc, pattern = "^MT-", col.name = "percent.mt")
+
+pbmc_sct <- SCTransform(pbmc, vars.to.regress = c("percent.mt","nCount_RNA"), nfeatures = 2000, verbose = FALSE)
+
+pbmc_sct
+```
+
+## Vérification
+
+On peut maintenant vérifier que la fonction SCTransform a bien fonctionné. On voit les HVG qui ont été séléctionnés, ici nous affichons les 6 premiers.
+
+```{r}
+
+head(VariableFeatures(pbmc_sct))
+
+```
+
+On peut également vérifier que le scaling a bien eu lieu en regardant la moyenne d'expression de ces gènes en vérifiant qu'elle est bien à 0.
+
+```{r}
+
+hvg_genes <- head(VariableFeatures(pbmc_sct), 5)
+scaled_data <- pbmc_sct[["SCT"]]@scale.data[hvg_genes, ]
+
+mean_expression <- rowMeans(scaled_data)
+mean_expression
+
+
+```
+
+Merci d'avoir suivis ce tutoriel. Bonne journée
